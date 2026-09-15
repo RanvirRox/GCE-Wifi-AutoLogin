@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+     android:width="24dp"
+     android:height="24dp"
+     android:viewportWidth="24"
+     android:viewportHeight="24">
+     
+     <!-- Male Plug (Left) -->
+     <path
+         android:fillColor="#FFFFFF"
+         android:pathData="M1,11 h4 v-3 h4 v2 h3 v1 h-3 v2 h3 v1 h-3 v2 h-4 v-3 H1 z"/>
+         
+     <!-- Female Socket (Right) -->
+     <path
+         android:fillColor="#FFFFFF"
+         android:pathData="M15,8 h4 v3 h4 v2 h-4 v3 h-4 v-2 h2 v-4 h-2 z"/>
+         
+ </vector>

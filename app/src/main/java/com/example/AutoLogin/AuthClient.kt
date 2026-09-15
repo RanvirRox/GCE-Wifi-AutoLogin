@@ -7,32 +7,89 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 
 data class AuthResult(val success: Boolean, val message: String)
 
 object AuthClient {
     private const val PORTAL_URL = "http://172.16.16.16/24online/servlet/E24onlineHTTPClient"
 
-    fun pingGoogle(): Pair<Boolean, String> {
+    // List of reliable endpoints for rapid internet verification
+    private val PING_ENDPOINTS = listOf(
+        "http://connectivitycheck.gstatic.com/generate_204",
+        "http://www.google.com/generate_204",
+        "http://1.1.1.1",
+        "http://1.0.0.1"
+    )
+
+    private fun checkSingleEndpoint(endpointUrl: String, timeoutMs: Int = 2000): Pair<Boolean, String> {
+        var conn: HttpURLConnection? = null
         return try {
-            val url = URL("http://connectivitycheck.gstatic.com/generate_204")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 3000
-            conn.readTimeout = 3000
+            val url = URL(endpointUrl)
+            conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
             conn.instanceFollowRedirects = false
+            conn.useCaches = false
+            
             val code = conn.responseCode
-            conn.disconnect()
-            if (code == 204 || code == 200) {
-                Pair(true, "🌐 Ping Google: ONLINE (Status $code)")
+            // HTTP 204 No Content or HTTP 200/301/302 to known endpoints (no captive portal hijack)
+            if (code == 204 || code in 200..302) {
+                Pair(true, "ONLINE ($code from ${url.host})")
             } else {
-                Pair(false, "⚠️ Ping Google: CAPTIVE PORTAL DETECTED (Status $code)")
+                Pair(false, "CAPTIVE PORTAL DETECTED ($code from ${url.host})")
             }
         } catch (e: Exception) {
-            Pair(false, "❌ Ping Google: FAILED (${e.localizedMessage})")
+            Pair(false, "FAILED (${e.localizedMessage})")
+        } finally {
+            conn?.disconnect()
         }
     }
 
-    // Retries up to 3 times on failure
+    // Parallel multi-server ping: returns true as soon as ANY server responds successfully
+    fun checkInternetConnectivity(timeoutMs: Int = 2500): Pair<Boolean, String> {
+        val executor = Executors.newFixedThreadPool(PING_ENDPOINTS.size)
+        val futures = mutableListOf<Future<Pair<Boolean, String>>>()
+
+        for (endpoint in PING_ENDPOINTS) {
+            futures.add(executor.submit<Pair<Boolean, String>> {
+                checkSingleEndpoint(endpoint, timeoutMs)
+            })
+        }
+
+        var successResult: Pair<Boolean, String>? = null
+        val deadline = System.currentTimeMillis() + timeoutMs
+
+        // Poll futures for the first successful response before deadline
+        while (System.currentTimeMillis() < deadline && successResult == null) {
+            for (future in futures) {
+                if (future.isDone) {
+                    try {
+                        val res = future.get()
+                        if (res.first) {
+                            successResult = res
+                            break
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            if (successResult != null) break
+            try { Thread.sleep(50) } catch (_: InterruptedException) {}
+        }
+
+        executor.shutdownNow()
+
+        return if (successResult != null) {
+            Pair(true, "🌐 Internet Verified: ${successResult.second}")
+        } else {
+            Pair(false, "❌ Internet Verification Failed (All endpoints timed out or failed)")
+        }
+    }
+
+    fun pingGoogle(): Pair<Boolean, String> = checkInternetConnectivity()
+
+    // Retries up to maxRetries on failure, then runs parallel multi-server connectivity check
     fun sendLoginRequestWithRetry(
         context: Context,
         maxRetries: Int = 3,
@@ -45,7 +102,7 @@ object AuthClient {
             lastResult = sendLoginRequest(context)
 
             if (lastResult.success) {
-                return lastResult
+                break
             }
 
             if (attempt < maxRetries) {
@@ -56,7 +113,15 @@ object AuthClient {
             }
         }
 
-        return AuthResult(false, "❌ All $maxRetries attempts failed. Last error: ${lastResult.message}")
+        onProgress?.invoke("🔍 Verifying internet connectivity across multiple servers...")
+        val pingRes = checkInternetConnectivity()
+        onProgress?.invoke(pingRes.second)
+
+        return if (pingRes.first) {
+            AuthResult(true, "✅ Login Successful & Connectivity Verified: ${pingRes.second}")
+        } else {
+            AuthResult(false, lastResult.message + " | Ping: ${pingRes.second}")
+        }
     }
 
     fun sendLoginRequest(context: Context): AuthResult {
@@ -74,8 +139,8 @@ object AuthClient {
             conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.doOutput = true
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             conn.setRequestProperty(
                 "User-Agent",

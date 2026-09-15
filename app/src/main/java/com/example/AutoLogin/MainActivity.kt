@@ -1,16 +1,13 @@
 package com.example.autologin
 
-import android.Manifest
 import android.app.Activity
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
@@ -26,7 +23,6 @@ class MainActivity : Activity() {
 
     private lateinit var tvWifiStatus: TextView
     private lateinit var tvLogConsole: TextView
-    private lateinit var swAutoLogin: Switch
     private lateinit var credsContainer: LinearLayout
     private lateinit var etUsername: EditText
     private lateinit var etPassword: EditText
@@ -47,11 +43,6 @@ class MainActivity : Activity() {
                 tvWifiStatus.setTextColor(Color.parseColor("#2E7D32"))
             }
             log("📡 Wi-Fi Connected")
-
-            if (session.isAutoLoginEnabled()) {
-                log("⚡ AutoLogin is ON -> Starting 3-try POST...")
-                triggerLoginWithRetry()
-            }
         }
 
         override fun onLost(network: Network) {
@@ -60,13 +51,6 @@ class MainActivity : Activity() {
                 tvWifiStatus.setTextColor(Color.RED)
             }
             log("🔌 Wi-Fi Disconnected")
-            if (session.isAutoLoginEnabled()) {
-                try {
-                    AutoLoginWorker.enqueue(applicationContext)
-                } catch (e: Exception) {
-                    log("⚠️ Worker notice: ${e.localizedMessage}")
-                }
-            }
         }
     }
 
@@ -74,12 +58,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         session = SessionManager(this)
         cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
-            }
-        }
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -94,41 +72,10 @@ class MainActivity : Activity() {
         }
         root.addView(tvWifiStatus)
 
-        // Master AutoLogin Switch
-        val toggleRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 16, 0, 16)
-        }
-
-        val tvToggleLabel = TextView(this).apply {
-            text = "Auto-Login on Wi-Fi Connect"
-            textSize = 15f
-            setTextColor(Color.DKGRAY)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-
-        swAutoLogin = Switch(this).apply {
-            isChecked = session.isAutoLoginEnabled()
-            setOnCheckedChangeListener { _, isChecked ->
-                session.setAutoLoginEnabled(isChecked)
-                log("AutoLogin toggle set to: $isChecked")
-                if (isChecked) {
-                    try {
-                        AutoLoginWorker.enqueue(applicationContext)
-                    } catch (e: Exception) {
-                        log("⚠️ Worker notice: ${e.localizedMessage}")
-                    }
-                }
-            }
-        }
-        toggleRow.addView(tvToggleLabel)
-        toggleRow.addView(swAutoLogin)
-        root.addView(toggleRow)
-
         // Action Buttons Row
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 8, 0, 8)
+            setPadding(0, 16, 0, 8)
         }
 
         val btnLogin = Button(this).apply {
@@ -162,7 +109,7 @@ class MainActivity : Activity() {
         btnRow.addView(btnToggleCreds)
         root.addView(btnRow)
 
-        // Embedded Credentials Panel (No Dialog = Zero Window Leaks/Crashes)
+        // Embedded Credentials Panel
         credsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(20, 20, 20, 20)
@@ -188,11 +135,6 @@ class MainActivity : Activity() {
                 session.saveCredentials(u, p)
                 log("💾 Credentials saved for: $u")
                 credsContainer.visibility = View.GONE
-                try {
-                    AutoLoginWorker.enqueue(applicationContext)
-                } catch (e: Exception) {
-                    log("⚠️ Worker notice: ${e.localizedMessage}")
-                }
             }
         }
 
@@ -228,15 +170,6 @@ class MainActivity : Activity() {
         setContentView(root)
 
         log("Dev Console Initialized.")
-
-        if (session.isAutoLoginEnabled() && session.getUsername().isNotEmpty()) {
-            try {
-                AutoLoginWorker.enqueue(applicationContext)
-            } catch (e: Exception) {
-                log("⚠️ Worker notice: ${e.localizedMessage}")
-            }
-        }
-
         registerNetworkListener()
     }
 

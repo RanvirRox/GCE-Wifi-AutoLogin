@@ -13,7 +13,4 @@ class SessionManager(context: Context) {
 
     fun getUsername(): String = prefs.getString("USER", "") ?: ""
     fun getPassword(): String = prefs.getString("PASS", "") ?: ""
-
-    fun isAutoLoginEnabled(): Boolean = prefs.getBoolean("AUTO_LOGIN_ENABLED", true)
-    fun setAutoLoginEnabled(enabled: Boolean) = prefs.edit().putBoolean("AUTO_LOGIN_ENABLED", enabled).apply()
 }

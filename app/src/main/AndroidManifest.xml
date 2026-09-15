@@ -3,12 +3,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
         android:icon="@android:drawable/sym_def_app_icon"
-        android:label="GCE AutoLogin (Dev)"
+        android:label="Wi-Fi Login"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="true">
@@ -25,7 +24,7 @@
         <service
             android:name=".MyTileServices"
             android:exported="true"
-            android:icon="@android:drawable/ic_dialog_info"
+            android:icon="@drawable/ic_wire_disconnected"
             android:label="Wi-Fi Login"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
@@ -34,12 +33,16 @@
         </service>
 
         <receiver
-            android:name=".BootReceiver"
-            android:enabled="true"
-            android:exported="true">
+            android:name=".LoginWidgetProvider"
+            android:exported="true"
+            android:label="Wi-Fi Login">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.autologin.ACTION_WIDGET_CLICK" />
             </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_login_info" />
         </receiver>
 
     </application>
