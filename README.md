@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="assets/logo.png" alt="GCE WiFi Login" width="180">
+</div>
+
 # GCE Wi-Fi AutoLogin
 
 A simple android app to remove the hastle of logging in everytime we use the hostel WiFi at GCE Gaya
