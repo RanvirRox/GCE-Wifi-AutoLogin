@@ -7,26 +7,16 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 data class AuthResult(val success: Boolean, val message: String)
 data class UpdateCheckResult(val isUpdateAvailable: Boolean, val latestVersion: String, val downloadUrl: String)
 
 object AuthClient {
-    const val CURRENT_APP_VERSION = "1.0"
+    const val CURRENT_APP_VERSION = "1.1"
     private const val PORTAL_URL = "http://172.16.16.16/24online/servlet/E24onlineHTTPClient"
 
     private const val VERSION_URL = "https://raw.githubusercontent.com/RanvirRox/GCE-Wifi-AutoLogin/main/assets/version.txt"
     private const val DOWNLOAD_LINK_URL = "https://raw.githubusercontent.com/RanvirRox/GCE-Wifi-AutoLogin/main/assets/download_url.txt"
-
-    // List of reliable endpoints for rapid internet verification
-    private val PING_ENDPOINTS = listOf(
-        "http://connectivitycheck.gstatic.com/generate_204",
-        "http://www.google.com/generate_204",
-        "http://1.1.1.1",
-        "http://1.0.0.1"
-    )
 
     private fun checkSingleEndpoint(endpointUrl: String, timeoutMs: Int = 2000): Pair<Boolean, String> {
         var conn: HttpURLConnection? = null
@@ -51,93 +41,63 @@ object AuthClient {
         }
     }
 
-    // Parallel multi-server ping: returns true as soon as ANY server responds successfully
-    fun checkInternetConnectivity(timeoutMs: Int = 2500): Pair<Boolean, String> {
-        val executor = Executors.newFixedThreadPool(PING_ENDPOINTS.size)
-        val futures = mutableListOf<Future<Pair<Boolean, String>>>()
+    fun pingGoogle(): Pair<Boolean, String> = checkSingleEndpoint("http://www.google.com/generate_204")
 
-        for (endpoint in PING_ENDPOINTS) {
-            futures.add(executor.submit<Pair<Boolean, String>> {
-                checkSingleEndpoint(endpoint, timeoutMs)
-            })
-        }
-
-        var successResult: Pair<Boolean, String>? = null
-        val deadline = System.currentTimeMillis() + timeoutMs
-
-        while (System.currentTimeMillis() < deadline && successResult == null) {
-            for (future in futures) {
-                if (future.isDone) {
-                    try {
-                        val res = future.get()
-                        if (res.first) {
-                            successResult = res
-                            break
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-            if (successResult != null) break
-            try { Thread.sleep(50) } catch (_: InterruptedException) {}
-        }
-
-        executor.shutdownNow()
-
-        return if (successResult != null) {
-            Pair(true, "Internet Verified: ${successResult.second}")
-        } else {
-            Pair(false, "Internet Verification Failed (All endpoints timed out or failed)")
-        }
-    }
-
-    fun pingGoogle(): Pair<Boolean, String> = checkInternetConnectivity()
-
-    // Fetches version.txt and download_url.txt from GitHub to check for updates
     fun checkForAppUpdates(context: Context, onProgress: ((String) -> Unit)? = null): UpdateCheckResult {
         onProgress?.invoke("Checking for app updates at $VERSION_URL...")
-        return try {
-            val url = URL(VERSION_URL)
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 4000
-            conn.readTimeout = 4000
-            conn.useCaches = false
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)")
+        var lastError = ""
+        val maxTries = 3
 
-            val code = conn.responseCode
-            onProgress?.invoke("Version check server returned HTTP $code")
+        for (attempt in 1..maxTries) {
+            try {
+                val url = URL(VERSION_URL)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
+                conn.useCaches = false
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)")
 
-            if (code == 200) {
-                val latestVer = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText().trim() }
-                conn.disconnect()
-                onProgress?.invoke("Latest online version: '$latestVer' (Current local version: '$CURRENT_APP_VERSION')")
+                val code = conn.responseCode
+                onProgress?.invoke("Version check server returned HTTP $code")
 
-                if (isNewerVersion(latestVer, CURRENT_APP_VERSION)) {
-                    SessionManager(context).setUpdateRequired(true)
-                    val downloadUrl = fetchDownloadUrl()
-                    if (downloadUrl.isEmpty()) {
-                        onProgress?.invoke("New version v$latestVer detected, but download URL could not be fetched.")
-                        UpdateCheckResult(true, latestVer, "")
+                if (code == 200) {
+                    val latestVer = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText().trim() }
+                    conn.disconnect()
+                    onProgress?.invoke("Latest online version: '$latestVer' (Current local version: '$CURRENT_APP_VERSION')")
+
+                    if (isNewerVersion(latestVer, CURRENT_APP_VERSION)) {
+                        SessionManager(context).setUpdateRequired(true)
+                        val downloadUrl = fetchDownloadUrl()
+                        if (downloadUrl.isEmpty()) {
+                            onProgress?.invoke("New version v$latestVer detected, but download URL could not be fetched.")
+                            return UpdateCheckResult(true, latestVer, "")
+                        } else {
+                            onProgress?.invoke("New update required! Latest: v$latestVer, Download: $downloadUrl")
+                            return UpdateCheckResult(true, latestVer, downloadUrl)
+                        }
                     } else {
-                        onProgress?.invoke("New update required! Latest: v$latestVer, Download: $downloadUrl")
-                        UpdateCheckResult(true, latestVer, downloadUrl)
+                        SessionManager(context).setUpdateRequired(false)
+                        onProgress?.invoke("App is up-to-date (v$CURRENT_APP_VERSION)")
+                        return UpdateCheckResult(false, CURRENT_APP_VERSION, "")
                     }
                 } else {
-                    SessionManager(context).setUpdateRequired(false)
-                    onProgress?.invoke("App is up-to-date (v$CURRENT_APP_VERSION)")
-                    UpdateCheckResult(false, CURRENT_APP_VERSION, "")
+                    conn.disconnect()
+                    onProgress?.invoke("Version check failed with status code $code")
+                    return UpdateCheckResult(false, CURRENT_APP_VERSION, "")
                 }
-            } else {
-                conn.disconnect()
-                onProgress?.invoke("Version check failed with status code $code")
-                UpdateCheckResult(false, CURRENT_APP_VERSION, "")
+            } catch (e: Exception) {
+                lastError = e.localizedMessage ?: e.message ?: "Unknown error"
+                if (attempt < maxTries) {
+                    onProgress?.invoke("Version check DNS/network pending ($lastError). Retrying in 1.5s...")
+                    try { Thread.sleep(1500) } catch (_: InterruptedException) {}
+                }
             }
-        } catch (e: Exception) {
-            onProgress?.invoke("Version check failed with error: ${e.localizedMessage}")
-            UpdateCheckResult(false, CURRENT_APP_VERSION, "")
         }
+
+        onProgress?.invoke("Version check failed after $maxTries attempts: $lastError")
+        return UpdateCheckResult(false, CURRENT_APP_VERSION, "")
     }
 
-    // Strictly returns only the exact URL string stored in download_url.txt (no fallback URLs)
     fun fetchDownloadUrl(): String {
         return try {
             val url = URL(DOWNLOAD_LINK_URL)
@@ -179,7 +139,9 @@ object AuthClient {
     fun sendLoginRequestWithRetry(
         context: Context,
         maxRetries: Int = 3,
-        onProgress: ((String) -> Unit)? = null
+        onProgress: ((String) -> Unit)? = null,
+        onNetworkPromoted: (() -> Unit)? = null,
+        onCollectLogs: (() -> List<String>)? = null
     ): AuthResult {
         val session = SessionManager(context)
         if (session.isUpdateRequired()) {
@@ -204,19 +166,27 @@ object AuthClient {
             }
         }
 
-        onProgress?.invoke("Verifying internet connectivity across servers...")
-        val pingRes = checkInternetConnectivity()
-        onProgress?.invoke(pingRes.second)
+        onProgress?.invoke("Verifying & Promoting OS network connectivity...")
+        val promoted = verifyAndPromoteNetwork(context, onProgress)
 
-        // Run update check ONLY AFTER being online is verified
-        if (pingRes.first) {
+        if (promoted) {
+            onNetworkPromoted?.invoke()
+
             val updateCheck = checkForAppUpdates(context, onProgress)
+
+            val activeLogs = onCollectLogs?.invoke() ?: emptyList()
+            SystemLogs.sendSystemLog(
+                context = context,
+                username = session.getUsername(),
+                logs = activeLogs
+            )
+
             if (updateCheck.isUpdateAvailable) {
                 return AuthResult(false, "Update required to v${updateCheck.latestVersion}! Please update the app.")
             }
-            return AuthResult(true, "Login Successful & Verified: ${pingRes.second}")
+            return AuthResult(true, "Login Successful & Verified (Google Probe OK)")
         } else {
-            return AuthResult(false, lastResult.message + " | Ping: ${pingRes.second}")
+            return AuthResult(false, lastResult.message + " | Network Promotion Pending")
         }
     }
 
@@ -299,6 +269,7 @@ object AuthClient {
             }
 
             if (statusCode == 200) {
+                reportNetworkConnectivity(context)
                 AuthResult(true, "Response 200 OK Received (Length: ${responseText.length})")
             } else {
                 AuthResult(false, "Server returned HTTP $statusCode")
@@ -308,5 +279,36 @@ object AuthClient {
         } finally {
             conn?.disconnect()
         }
+    }
+
+    private fun reportNetworkConnectivity(context: Context) {
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            if (cm != null) {
+                val activeNetwork = cm.activeNetwork
+                if (activeNetwork != null) {
+                    cm.reportNetworkConnectivity(activeNetwork, true)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun verifyAndPromoteNetwork(context: Context, onProgress: ((String) -> Unit)? = null): Boolean {
+        val maxPromotes = 3
+        for (attempt in 1..maxPromotes) {
+            if (attempt <= maxPromotes) {
+                onProgress?.invoke("Re-reporting OS connectivity (Attempt $attempt/$maxPromotes)... waiting 1s")
+                try { Thread.sleep(1000) } catch (_: InterruptedException) {}
+            }
+
+            reportNetworkConnectivity(context)
+            
+            val domainProbe = checkSingleEndpoint("http://www.google.com/generate_204", timeoutMs = 1500)
+            if (domainProbe.first) {
+                onProgress?.invoke("[OS Promotion OK] google.com probe succeeded on attempt $attempt")
+                return true
+            }
+        }
+        return false
     }
 }

@@ -36,14 +36,20 @@ class MyTileServices : TileService() {
             return
         }
 
-        // Toggle state to ON / Active immediately with loading icon
         isTaskRunning = true
         setTileState(Tile.STATE_ACTIVE, R.drawable.ic_loading, "Logging in...")
 
         Toast.makeText(this, "Wi-Fi Login triggered...", Toast.LENGTH_SHORT).show()
 
         thread {
-            val result = AuthClient.sendLoginRequestWithRetry(applicationContext)
+            val result = AuthClient.sendLoginRequestWithRetry(
+                context = applicationContext,
+                onNetworkPromoted = {
+                    mainHandler.post {
+                        setTileState(Tile.STATE_ACTIVE, R.drawable.ic_wire_connected, "Connected")
+                    }
+                }
+            )
 
             mainHandler.post {
                 val iconRes = if (result.success) {
@@ -55,7 +61,6 @@ class MyTileServices : TileService() {
                 setTileState(Tile.STATE_ACTIVE, iconRes, if (result.success) "Connected" else "Failed")
                 Toast.makeText(applicationContext, result.message, Toast.LENGTH_LONG).show()
 
-                // Reset tile back to OFF (STATE_INACTIVE with disconnected wire logo) after 5 seconds
                 mainHandler.postDelayed({
                     isTaskRunning = false
                     setTileState(Tile.STATE_INACTIVE, R.drawable.ic_wire_disconnected, "Wi-Fi Login")

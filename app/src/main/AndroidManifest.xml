@@ -36,7 +36,7 @@
         <receiver
             android:name=".LoginWidgetProvider"
             android:exported="true"
-            android:label="Wi-Fi Login">
+            android:label="GCE Wi-Fi Login">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.example.autologin.ACTION_WIDGET_CLICK" />

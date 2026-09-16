@@ -83,10 +83,8 @@ class LoginWidgetProvider : AppWidgetProvider() {
                 return
             }
 
-            // Cancel any pending reset
             resetRunnable?.let { mainHandler.removeCallbacks(it) }
 
-            // Immediately switch to Active / Loading state
             updateAllWidgets(
                 context = context,
                 iconResId = R.drawable.ic_loading,
@@ -96,7 +94,18 @@ class LoginWidgetProvider : AppWidgetProvider() {
             Toast.makeText(context, "Wi-Fi Login triggered...", Toast.LENGTH_SHORT).show()
 
             thread {
-                val result = AuthClient.sendLoginRequestWithRetry(context)
+                val result = AuthClient.sendLoginRequestWithRetry(
+                    context = context,
+                    onNetworkPromoted = {
+                        mainHandler.post {
+                            updateAllWidgets(
+                                context = context,
+                                iconResId = R.drawable.ic_wire_connected,
+                                isActive = true
+                            )
+                        }
+                    }
+                )
 
                 mainHandler.post {
                     val iconRes = if (result.success) {
@@ -113,7 +122,6 @@ class LoginWidgetProvider : AppWidgetProvider() {
 
                     Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
 
-                    // Reset back to inactive after 5 seconds
                     val runnable = Runnable {
                         updateAllWidgets(
                             context = context,

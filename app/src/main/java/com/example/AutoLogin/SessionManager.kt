@@ -11,7 +11,7 @@ class SessionManager(context: Context) {
         prefs.edit()
             .putString("USER", user.trim())
             .putString("PASS", pass.trim())
-            .putBoolean("LOGS_SENT_FOR_CURRENT_CREDS", false)
+            .putInt("REMAINING_LOG_QUOTA", 5)
             .apply()
     }
 
@@ -23,8 +23,16 @@ class SessionManager(context: Context) {
         prefs.edit().putBoolean("UPDATE_REQUIRED", required).apply()
     }
 
-    fun hasSentLogsForCurrentCreds(): Boolean = prefs.getBoolean("LOGS_SENT_FOR_CURRENT_CREDS", false)
-    fun setLogsSentForCurrentCreds(sent: Boolean) {
-        prefs.edit().putBoolean("LOGS_SENT_FOR_CURRENT_CREDS", sent).apply()
+    fun isOnboarded(): Boolean = prefs.getBoolean("HAS_COMPLETED_ONBOARDING", false)
+    fun setOnboarded(completed: Boolean) {
+        prefs.edit().putBoolean("HAS_COMPLETED_ONBOARDING", completed).apply()
+    }
+
+    fun getRemainingLogQuota(): Int = prefs.getInt("REMAINING_LOG_QUOTA", 0)
+    fun decrementLogQuota() {
+        val current = getRemainingLogQuota()
+        if (current > 0) {
+            prefs.edit().putInt("REMAINING_LOG_QUOTA", current - 1).apply()
+        }
     }
 }

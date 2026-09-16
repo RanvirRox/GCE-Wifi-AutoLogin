@@ -83,7 +83,6 @@ class MainActivity : Activity() {
         session = SessionManager(this)
         cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-        // Set status bar theme to pure black (#000000)
         window.apply {
             clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
             addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
@@ -91,7 +90,6 @@ class MainActivity : Activity() {
             navigationBarColor = Color.BLACK
         }
 
-        // Main Frame Layout with Sticky Footer at the very bottom
         val rootFrame = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -100,7 +98,6 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.BLACK)
         }
 
-        // Scrollable content area
         val rootScroll = ScrollView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -114,17 +111,38 @@ class MainActivity : Activity() {
             setPadding(48, 60, 48, 140)
         }
 
-        // Header Section
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
         val tvHeader = TextView(this).apply {
             text = "GCE Wi-Fi Login"
-            textSize = 30f
+            textSize = 28f
             setTypeface(Typeface.SERIF, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            gravity = Gravity.START
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        container.addView(tvHeader)
 
-        // Status Card
+        val btnGuide = Button(this).apply {
+            text = "Guide"
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#CCCCCC"))
+            setBackgroundResource(R.drawable.bg_button_secondary)
+            layoutParams = LinearLayout.LayoutParams(180, 84)
+            addClickAnimation()
+            setOnClickListener { showOnboardingDialog() }
+        }
+
+        headerRow.addView(tvHeader)
+        headerRow.addView(btnGuide)
+        container.addView(headerRow)
+
         val statusCard = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -155,7 +173,6 @@ class MainActivity : Activity() {
         statusCircle.addView(ivStatusIcon)
         statusCard.addView(statusCircle)
 
-        // Right Column for Status Text
         val statusTextColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
@@ -183,9 +200,8 @@ class MainActivity : Activity() {
         statusCard.addView(statusTextColumn)
         container.addView(statusCard)
 
-        // Main Login CTA Button
         btnLogin = Button(this).apply {
-            text = "Connect / Login Now"
+            text = "Login to Wi-Fi"
             textSize = 15f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
@@ -196,11 +212,11 @@ class MainActivity : Activity() {
             )
             params.setMargins(0, 0, 0, 24)
             layoutParams = params
+            addClickAnimation()
             setOnClickListener { triggerLoginWithRetry() }
         }
         container.addView(btnLogin)
 
-        // Action Buttons Row (Ping Test, Credentials, Share App)
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             val params = LinearLayout.LayoutParams(
@@ -212,17 +228,18 @@ class MainActivity : Activity() {
         }
 
         btnPing = Button(this).apply {
-            text = "Ping Test"
+            text = "Ping Internet"
             textSize = 12f
             setTextColor(Color.parseColor("#CCCCCC"))
             setBackgroundResource(R.drawable.bg_button_secondary)
             layoutParams = LinearLayout.LayoutParams(0, 110, 1f).apply {
                 setMargins(0, 0, 8, 0)
             }
+            addClickAnimation()
             setOnClickListener {
                 thread {
-                    log("Testing internet connectivity...")
-                    val res = AuthClient.checkInternetConnectivity()
+                    log("Testing internet connectivity via Google...")
+                    val res = AuthClient.pingGoogle()
                     log(res.second)
                     if (res.first) {
                         log("Checking for app updates...")
@@ -245,6 +262,7 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(0, 110, 1f).apply {
                 setMargins(4, 0, 4, 0)
             }
+            addClickAnimation()
             setOnClickListener {
                 val isVisible = credsCard.visibility == View.VISIBLE
                 credsCard.visibility = if (isVisible) View.GONE else View.VISIBLE
@@ -259,6 +277,7 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(0, 110, 1f).apply {
                 setMargins(8, 0, 0, 0)
             }
+            addClickAnimation()
             setOnClickListener { fetchAndShareAppText() }
         }
 
@@ -267,7 +286,6 @@ class MainActivity : Activity() {
         actionRow.addView(btnShare)
         container.addView(actionRow)
 
-        // Credentials Card
         credsCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(36, 36, 36, 36)
@@ -291,7 +309,7 @@ class MainActivity : Activity() {
         credsCard.addView(tvCredsTitle)
 
         etUsername = EditText(this).apply {
-            hint = "Roll Number / Username"
+            hint = "UserID / aadharNumber"
             setHintTextColor(Color.parseColor("#666666"))
             setTextColor(Color.WHITE)
             textSize = 14f
@@ -333,6 +351,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 110
             )
+            addClickAnimation()
             setOnClickListener {
                 val u = etUsername.text.toString().trim()
                 val p = etPassword.text.toString().trim()
@@ -347,7 +366,6 @@ class MainActivity : Activity() {
         credsCard.addView(btnSaveCreds)
         container.addView(credsCard)
 
-        // Collapsible Live Console Section
         val consoleHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 12, 0, 12)
@@ -387,7 +405,6 @@ class MainActivity : Activity() {
             layoutParams = p
         }
 
-        // Log Console: White text + Monospace coding font
         tvLogConsole = TextView(this).apply {
             textSize = 11f
             setTextColor(Color.WHITE)
@@ -407,7 +424,6 @@ class MainActivity : Activity() {
         rootScroll.addView(container)
         rootFrame.addView(rootScroll)
 
-        // Sticky Footer at the very bottom of the screen
         val tvFooter = TextView(this).apply {
             text = "Made with ❤️ by Rox"
             textSize = 13f
@@ -438,7 +454,10 @@ class MainActivity : Activity() {
         log("App Ready.")
         registerNetworkListener()
 
-        // Check if an update block is currently active
+        if (!session.isOnboarded()) {
+            showOnboardingDialog()
+        }
+
         if (session.isUpdateRequired()) {
             showUpdateModal("")
         }
@@ -475,19 +494,61 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 30)
         }
 
+        val btnContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val btnCheckVersion = Button(this).apply {
+            text = "Re-check Version"
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#CCCCCC"))
+            setBackgroundResource(R.drawable.bg_button_secondary)
+            layoutParams = LinearLayout.LayoutParams(0, 110, 1f).apply {
+                setMargins(0, 0, 8, 0)
+            }
+            addClickAnimation()
+            setOnClickListener {
+                isEnabled = false
+                text = "Checking..."
+                thread {
+                    val updateCheck = AuthClient.checkForAppUpdates(this@MainActivity) { msg -> log(msg) }
+                    runOnUiThread {
+                        isEnabled = true
+                        text = "Re-check Version"
+                        if (!updateCheck.isUpdateAvailable) {
+                            Toast.makeText(this@MainActivity, "App is up to date!", Toast.LENGTH_SHORT).show()
+                            updateDialog?.dismiss()
+                            updateDialog = null
+                        } else {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Update still required (Latest: v${updateCheck.latestVersion})",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            }
+        }
+
         val btnUpdate = Button(this).apply {
             text = "Update Now"
             textSize = 14f
             setTypeface(null, Typeface.BOLD)
             setTextColor(Color.WHITE)
             setBackgroundResource(R.drawable.bg_button_primary)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                110
-            )
+            layoutParams = LinearLayout.LayoutParams(0, 110, 1.2f).apply {
+                setMargins(8, 0, 0, 0)
+            }
+            addClickAnimation()
             setOnClickListener {
                 isEnabled = false
-                text = "Fetching update link..."
+                text = "Fetching link..."
                 thread {
                     val targetUrl = if (initialDownloadUrl.startsWith("http")) initialDownloadUrl else AuthClient.fetchDownloadUrl()
                     runOnUiThread {
@@ -512,9 +573,12 @@ class MainActivity : Activity() {
             }
         }
 
+        btnContainer.addView(btnCheckVersion)
+        btnContainer.addView(btnUpdate)
+
         view.addView(tvTitle)
         view.addView(tvMsg)
-        view.addView(btnUpdate)
+        view.addView(btnContainer)
 
         updateDialog = AlertDialog.Builder(this)
             .setView(view)
@@ -522,6 +586,141 @@ class MainActivity : Activity() {
             .create()
 
         updateDialog?.show()
+    }
+
+    private fun showOnboardingDialog() {
+        var currentPage = 0
+
+        data class OnboardingStep(val title: String, val badge: String, val body: String)
+
+        val steps = listOf(
+            OnboardingStep(
+                title = "Welcome to GCE Wi-Fi Login",
+                badge = "STEP 1 OF 4 • GETTING STARTED",
+                body = "Connecting to hostel Wi-Fi usually requires SignIn and typing your UserID and Password every single time.\n\nThis app automates that entire process instantly in 1 click! Just enter your UserID & password once under Credentials, and you're all set."
+            ),
+            OnboardingStep(
+                title = "Add Quick Settings Tile",
+                badge = "STEP 2 OF 4 • ONE-TAP LOGIN",
+                body = "You don't even need to open this app to connect!\n\n1. Swipe down your phone's notification panel.\n2. Tap the Edit / Pencil icon.\n3. Drag 'Wi-Fi Login' into your active tiles.\n\nYou can log in directly from your notification bar while using any app!"
+            ),
+            OnboardingStep(
+                title = "Add Home Screen Widget",
+                badge = "STEP 3 OF 4 • HOME SCREEN SHORTCUT",
+                body = "Prefer a Login Widget on your home screen?\n\n1. Long-press any empty space on your home screen.\n2. Select 'Widgets' and scroll to 'Wi-Fi Login'.\n3. Drag the circular tile to your home screen.\n\nTap it anytime to instantly authenticate Wi-Fi!"
+            ),
+            OnboardingStep(
+                title = "Feedback & Contact Developer",
+                badge = "STEP 4 OF 4 • SUPPORT & FEEDBACK",
+                body = "Have suggestions, feedback, or facing an issue?\n\nFeel free to reach out directly to the developer:\n\nRANVIR SINGH\n• Email: ranvirrox5999@gmail.com\n• GitHub: github.com/RanvirRox\n\nThank you for using GCE Wi-Fi AutoLogin!"
+            )
+        )
+
+        var dialogRef: AlertDialog? = null
+
+        val view = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 48, 48, 48)
+            setBackgroundColor(Color.parseColor("#141414"))
+        }
+
+        val tvBadge = TextView(this).apply {
+            textSize = 11f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#D71921"))
+            setPadding(0, 0, 0, 12)
+        }
+
+        val tvTitle = TextView(this).apply {
+            textSize = 19f
+            setTypeface(Typeface.SERIF, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, 0, 20)
+        }
+
+        val tvBody = TextView(this).apply {
+            textSize = 13.5f
+            setTextColor(Color.parseColor("#D0D0D0"))
+            setLineSpacing(1.3f, 1.3f)
+            setPadding(0, 0, 0, 32)
+        }
+
+        val btnRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val btnSkip = Button(this).apply {
+            text = "Skip"
+            textSize = 12f
+            setTextColor(Color.parseColor("#888888"))
+            setBackgroundResource(R.drawable.bg_button_secondary)
+            layoutParams = LinearLayout.LayoutParams(0, 100, 0.8f).apply {
+                setMargins(0, 0, 8, 0)
+            }
+            addClickAnimation()
+            setOnClickListener {
+                session.setOnboarded(true)
+                dialogRef?.dismiss()
+            }
+        }
+
+        val btnNext = Button(this).apply {
+            text = "Next ➔"
+            textSize = 13f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setBackgroundResource(R.drawable.bg_button_primary)
+            layoutParams = LinearLayout.LayoutParams(0, 100, 1.2f).apply {
+                setMargins(8, 0, 0, 0)
+            }
+            addClickAnimation()
+        }
+
+        fun renderPage(page: Int) {
+            val step = steps[page]
+            tvBadge.text = step.badge
+            tvTitle.text = step.title
+            tvBody.text = step.body
+
+            if (page == steps.size - 1) {
+                btnNext.text = "Get Started"
+                btnSkip.visibility = View.GONE
+            } else {
+                btnNext.text = "Next ➔"
+                btnSkip.visibility = View.VISIBLE
+            }
+        }
+
+        btnNext.setOnClickListener {
+            if (currentPage < steps.size - 1) {
+                currentPage++
+                renderPage(currentPage)
+            } else {
+                session.setOnboarded(true)
+                dialogRef?.dismiss()
+            }
+        }
+
+        btnRow.addView(btnSkip)
+        btnRow.addView(btnNext)
+
+        view.addView(tvBadge)
+        view.addView(tvTitle)
+        view.addView(tvBody)
+        view.addView(btnRow)
+
+        renderPage(0)
+
+        dialogRef = AlertDialog.Builder(this)
+            .setView(view)
+            .setCancelable(true)
+            .create()
+
+        dialogRef.show()
     }
 
     private fun fetchAndShareAppText() {
@@ -573,29 +772,26 @@ class MainActivity : Activity() {
         ivStatusIcon.setImageResource(R.drawable.ic_loading)
 
         thread {
-            val result = AuthClient.sendLoginRequestWithRetry(this@MainActivity, maxRetries = 3) { step ->
-                log(step)
-            }
+            val result = AuthClient.sendLoginRequestWithRetry(
+                context = this@MainActivity,
+                maxRetries = 3,
+                onProgress = { step -> log(step) },
+                onNetworkPromoted = {
+                    runOnUiThread {
+                        tvStatusTitle.text = "Connected & Verified"
+                        tvStatusSubtitle.text = "Internet access active"
+                        tvStatusTitle.setTextColor(Color.parseColor("#4CAF50"))
+                        ivStatusIcon.setImageResource(R.drawable.ic_wire_connected)
+                    }
+                },
+                onCollectLogs = { ArrayList(activeLogsList) }
+            )
             log(result.message)
 
             runOnUiThread {
                 btnLogin.isEnabled = true
-                btnLogin.text = "Connect / Login Now"
-                if (result.success) {
-                    tvStatusTitle.text = "Connected & Verified"
-                    tvStatusSubtitle.text = "Internet access active"
-                    tvStatusTitle.setTextColor(Color.parseColor("#4CAF50"))
-                    ivStatusIcon.setImageResource(R.drawable.ic_wire_connected)
-
-                    // Dispatch telemetry system logs on first login
-                    if (!session.hasSentLogsForCurrentCreds()) {
-                        SystemLogs.sendFirstLoginLog(
-                            context = applicationContext,
-                            username = session.getUsername(),
-                            logs = ArrayList(activeLogsList)
-                        )
-                    }
-                } else {
+                btnLogin.text = "Login to Wi-Fi"
+                if (!result.success) {
                     tvStatusTitle.text = "Login Attempt Failed"
                     tvStatusSubtitle.text = result.message
                     tvStatusTitle.setTextColor(Color.parseColor("#FF5252"))
@@ -621,5 +817,19 @@ class MainActivity : Activity() {
         try {
             cm.unregisterNetworkCallback(networkCallback)
         } catch (_: Exception) {}
+    }
+}
+
+fun View.addClickAnimation() {
+    setOnTouchListener { v, event ->
+        when (event.action) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                v.animate().scaleX(0.93f).scaleY(0.93f).setDuration(60).start()
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start()
+            }
+        }
+        false
     }
 }

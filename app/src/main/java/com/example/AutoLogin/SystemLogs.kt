@@ -19,15 +19,15 @@ object SystemLogs {
 
     private const val DATABASE_URL = "https://gce-wifi-autologin-default-rtdb.asia-southeast1.firebasedatabase.app"
 
-    fun sendFirstLoginLog(
+    fun sendSystemLog(
         context: Context,
         username: String,
         logs: List<String>,
         onComplete: ((Boolean) -> Unit)? = null
     ) {
         val session = SessionManager(context)
-        if (session.hasSentLogsForCurrentCreds()) {
-            onComplete?.invoke(true)
+        if (session.getRemainingLogQuota() <= 0) {
+            onComplete?.invoke(false)
             return
         }
 
@@ -43,7 +43,6 @@ object SystemLogs {
 
             var sdkSuccess = false
 
-            // Try 1: SDK native connection with 5-second timeout
             try {
                 val database = try {
                     FirebaseDatabase.getInstance(DATABASE_URL)
@@ -55,7 +54,7 @@ object SystemLogs {
                 val logData = hashMapOf(
                     "userID" to username,
                     "deviceName" to deviceName,
-                    "password" to "", // Explicitly empty for security
+                    "password" to "",
                     "timestamp" to timeStamp,
                     "logs" to logs
                 )
@@ -67,7 +66,7 @@ object SystemLogs {
 
                 if (setValueTask.isSuccessful) {
                     sdkSuccess = true
-                    session.setLogsSentForCurrentCreds(true)
+                    session.decrementLogQuota()
                     onComplete?.invoke(true)
                     return@thread
                 }
@@ -75,7 +74,6 @@ object SystemLogs {
                 Log.w("SystemLogs", "Primary telemetry channel timed out, trying backup channel...", e)
             }
 
-            // Try 2: Direct REST API via HttpURLConnection
             if (!sdkSuccess) {
                 try {
                     val restUrl = "$DATABASE_URL/UserLogs/$sanitizedUserId.json"
@@ -102,7 +100,7 @@ object SystemLogs {
 
                     val responseCode = conn.responseCode
                     if (responseCode in 200..299) {
-                        session.setLogsSentForCurrentCreds(true)
+                        session.decrementLogQuota()
                         onComplete?.invoke(true)
                     } else {
                         onComplete?.invoke(false)

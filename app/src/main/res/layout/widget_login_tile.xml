@@ -1,18 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_container"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="12dp"
-    android:background="@drawable/widget_bg_inactive">
+    android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/widget_icon"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:src="@drawable/ic_wire_disconnected"
-        android:contentDescription="Wi-Fi Login Icon" />
+    <LinearLayout
+        android:id="@+id/widget_container"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="@drawable/widget_bg_inactive">
 
-</LinearLayout>
+        <ImageView
+            android:id="@+id/widget_icon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_wire_disconnected"
+            android:contentDescription="Wi-Fi Login Icon" />
+
+    </LinearLayout>
+
+</FrameLayout>
+
