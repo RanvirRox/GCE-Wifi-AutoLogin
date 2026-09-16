@@ -1,6 +1,8 @@
 # GCE Wi-Fi AutoLogin
 
-GCE Wi-Fi AutoLogin is an Android application designed to automate the captive portal authentication process for the campus Wi-Fi network at Government Engineering College (GCE) Gaya. It replaces the repetitive manual process of opening a web browser and submitting credentials every time a user connects to the network.
+A simple android app to remove the hastle of logging in everytime we use the hostel WiFi at GCE Gaya
+
+GCE Wi-Fi AutoLogin is an Android application designed to automate the captive portal authentication process for the Hostel Wi-Fi network at Gaya Engineering College (GCE), Gaya. It replaces the repetitive manual process of Signing-In and submitting credentials every time a user connects to the network.
 
 ---
 
@@ -33,9 +35,6 @@ GCE Wi-Fi AutoLogin is an Android application designed to automate the captive p
                  │         │
                  │         ▼
                  │   [ Check App Updates ]
-                 │         │
-                 │         ▼
-                 │   [ Background Telemetry Logging ]
                  │
                  └─► Failure: Retry (up to 3 attempts)
 ```
@@ -44,7 +43,6 @@ GCE Wi-Fi AutoLogin is an Android application designed to automate the captive p
 2. **OS Network Promotion**: Upon receiving HTTP 200 OK, the app invokes `ConnectivityManager.reportNetworkConnectivity()` to notify the Android OS system monitor that internet access is active.
 3. **Domain Probe Verification**: Performs a verification check (`http://www.google.com/generate_204`) to confirm domain-level resolution.
 4. **Update Check**: Verifies local application version against the online repository assets.
-5. **Telemetry Logging**: Dispatches encrypted device telemetry and activity logs via Realtime Database API for up to 5 verified logins after credentials are saved or updated.
 
 ---
 
@@ -93,6 +91,12 @@ The compiled APK will be located at `app/build/outputs/apk/debug/app-debug.apk`.
 2. Select **Widgets**.
 3. Locate **Wi-Fi Login** in the list.
 4. Touch and drag the circular icon to your home screen.
+
+---
+
+## Download Links
+- Direct Download: 
+- Releases: [https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases](https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases)
 
 ---
 
