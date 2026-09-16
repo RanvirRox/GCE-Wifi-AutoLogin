@@ -1,1 +1,1 @@
-https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases/download/v1.1/app-release.apk
+https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases/download/v1.1/GCE-WiFi-Login_v1.1_stable.apk
