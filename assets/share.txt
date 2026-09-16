@@ -1,2 +1,5 @@
-Share this app to friends
-open this link: https://github.com/RanvirRox/
+Share GCE WiFi Login app to friends...
+Direct Download Link: https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases/download/v1.1/GCE-WiFi-Login_v1.1_stable.apk
+Github Codebase Link: https://github.com/RanvirRox/GCE-Wifi-AutoLogin/
+(Don't forget to give the repo a star)
+"Made with ❤️ by Rox"
