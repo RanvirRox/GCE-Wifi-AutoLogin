@@ -99,7 +99,7 @@ The compiled APK will be located at `app/build/outputs/apk/debug/app-debug.apk`.
 ---
 
 ## Download Links
-- Direct Download: 
+- Direct Download: [GCE-WiFi-Login_v1.1_stable.apk](https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases/download/v1.1/GCE-WiFi-Login_v1.1_stable.apk)
 - Releases: [https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases](https://github.com/RanvirRox/GCE-Wifi-AutoLogin/releases)
 
 ---
