@@ -11,9 +11,14 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 data class AuthResult(val success: Boolean, val message: String)
+data class UpdateCheckResult(val isUpdateAvailable: Boolean, val latestVersion: String, val downloadUrl: String)
 
 object AuthClient {
+    const val CURRENT_APP_VERSION = "1.0"
     private const val PORTAL_URL = "http://172.16.16.16/24online/servlet/E24onlineHTTPClient"
+
+    private const val VERSION_URL = "https://raw.githubusercontent.com/RanvirRox/GCE-Wifi-AutoLogin/main/assets/version.txt"
+    private const val DOWNLOAD_LINK_URL = "https://raw.githubusercontent.com/RanvirRox/GCE-Wifi-AutoLogin/main/assets/download_url.txt"
 
     // List of reliable endpoints for rapid internet verification
     private val PING_ENDPOINTS = listOf(
@@ -34,11 +39,10 @@ object AuthClient {
             conn.useCaches = false
             
             val code = conn.responseCode
-            // HTTP 204 No Content or HTTP 200/301/302 to known endpoints (no captive portal hijack)
             if (code == 204 || code in 200..302) {
-                Pair(true, "ONLINE ($code from ${url.host})")
+                Pair(true, "ONLINE (Status $code via ${url.host})")
             } else {
-                Pair(false, "CAPTIVE PORTAL DETECTED ($code from ${url.host})")
+                Pair(false, "CAPTIVE PORTAL DETECTED (Status $code via ${url.host})")
             }
         } catch (e: Exception) {
             Pair(false, "FAILED (${e.localizedMessage})")
@@ -61,7 +65,6 @@ object AuthClient {
         var successResult: Pair<Boolean, String>? = null
         val deadline = System.currentTimeMillis() + timeoutMs
 
-        // Poll futures for the first successful response before deadline
         while (System.currentTimeMillis() < deadline && successResult == null) {
             for (future in futures) {
                 if (future.isDone) {
@@ -81,24 +84,112 @@ object AuthClient {
         executor.shutdownNow()
 
         return if (successResult != null) {
-            Pair(true, "🌐 Internet Verified: ${successResult.second}")
+            Pair(true, "Internet Verified: ${successResult.second}")
         } else {
-            Pair(false, "❌ Internet Verification Failed (All endpoints timed out or failed)")
+            Pair(false, "Internet Verification Failed (All endpoints timed out or failed)")
         }
     }
 
     fun pingGoogle(): Pair<Boolean, String> = checkInternetConnectivity()
 
-    // Retries up to maxRetries on failure, then runs parallel multi-server connectivity check
+    // Fetches version.txt and download_url.txt from GitHub to check for updates
+    fun checkForAppUpdates(context: Context, onProgress: ((String) -> Unit)? = null): UpdateCheckResult {
+        onProgress?.invoke("Checking for app updates at $VERSION_URL...")
+        return try {
+            val url = URL(VERSION_URL)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.useCaches = false
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)")
+
+            val code = conn.responseCode
+            onProgress?.invoke("Version check server returned HTTP $code")
+
+            if (code == 200) {
+                val latestVer = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText().trim() }
+                conn.disconnect()
+                onProgress?.invoke("Latest online version: '$latestVer' (Current local version: '$CURRENT_APP_VERSION')")
+
+                if (isNewerVersion(latestVer, CURRENT_APP_VERSION)) {
+                    SessionManager(context).setUpdateRequired(true)
+                    val downloadUrl = fetchDownloadUrl()
+                    if (downloadUrl.isEmpty()) {
+                        onProgress?.invoke("New version v$latestVer detected, but download URL could not be fetched.")
+                        UpdateCheckResult(true, latestVer, "")
+                    } else {
+                        onProgress?.invoke("New update required! Latest: v$latestVer, Download: $downloadUrl")
+                        UpdateCheckResult(true, latestVer, downloadUrl)
+                    }
+                } else {
+                    SessionManager(context).setUpdateRequired(false)
+                    onProgress?.invoke("App is up-to-date (v$CURRENT_APP_VERSION)")
+                    UpdateCheckResult(false, CURRENT_APP_VERSION, "")
+                }
+            } else {
+                conn.disconnect()
+                onProgress?.invoke("Version check failed with status code $code")
+                UpdateCheckResult(false, CURRENT_APP_VERSION, "")
+            }
+        } catch (e: Exception) {
+            onProgress?.invoke("Version check failed with error: ${e.localizedMessage}")
+            UpdateCheckResult(false, CURRENT_APP_VERSION, "")
+        }
+    }
+
+    // Strictly returns only the exact URL string stored in download_url.txt (no fallback URLs)
+    fun fetchDownloadUrl(): String {
+        return try {
+            val url = URL(DOWNLOAD_LINK_URL)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.useCaches = false
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10)")
+            if (conn.responseCode == 200) {
+                val downloadLink = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText().trim() }
+                conn.disconnect()
+                downloadLink
+            } else {
+                conn.disconnect()
+                ""
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun isNewerVersion(latest: String, current: String): Boolean {
+        try {
+            val latestParts = latest.replace("v", "").trim().split(".").map { it.toInt() }
+            val currentParts = current.replace("v", "").trim().split(".").map { it.toInt() }
+            val length = maxOf(latestParts.size, currentParts.size)
+            for (i in 0 until length) {
+                val l = latestParts.getOrElse(i) { 0 }
+                val c = currentParts.getOrElse(i) { 0 }
+                if (l > c) return true
+                if (l < c) return false
+            }
+        } catch (_: Exception) {
+            return latest != current && latest.isNotEmpty()
+        }
+        return false
+    }
+
     fun sendLoginRequestWithRetry(
         context: Context,
         maxRetries: Int = 3,
         onProgress: ((String) -> Unit)? = null
     ): AuthResult {
+        val session = SessionManager(context)
+        if (session.isUpdateRequired()) {
+            return AuthResult(false, "Update required! Please update to the latest version.")
+        }
+
         var lastResult = AuthResult(false, "No attempts made")
 
         for (attempt in 1..maxRetries) {
-            onProgress?.invoke("⏳ [Attempt $attempt/$maxRetries] Sending POST to 172.16.16.16...")
+            onProgress?.invoke("[Attempt $attempt/$maxRetries] Sending POST request to 172.16.16.16...")
             lastResult = sendLoginRequest(context)
 
             if (lastResult.success) {
@@ -106,31 +197,40 @@ object AuthClient {
             }
 
             if (attempt < maxRetries) {
-                onProgress?.invoke("⚠️ Attempt $attempt failed: ${lastResult.message}. Retrying in 2s...")
+                onProgress?.invoke("Attempt $attempt failed: ${lastResult.message}. Retrying in 2s...")
                 try {
                     Thread.sleep(2000)
                 } catch (_: InterruptedException) {}
             }
         }
 
-        onProgress?.invoke("🔍 Verifying internet connectivity across multiple servers...")
+        onProgress?.invoke("Verifying internet connectivity across servers...")
         val pingRes = checkInternetConnectivity()
         onProgress?.invoke(pingRes.second)
 
-        return if (pingRes.first) {
-            AuthResult(true, "✅ Login Successful & Connectivity Verified: ${pingRes.second}")
+        // Run update check ONLY AFTER being online is verified
+        if (pingRes.first) {
+            val updateCheck = checkForAppUpdates(context, onProgress)
+            if (updateCheck.isUpdateAvailable) {
+                return AuthResult(false, "Update required to v${updateCheck.latestVersion}! Please update the app.")
+            }
+            return AuthResult(true, "Login Successful & Verified: ${pingRes.second}")
         } else {
-            AuthResult(false, lastResult.message + " | Ping: ${pingRes.second}")
+            return AuthResult(false, lastResult.message + " | Ping: ${pingRes.second}")
         }
     }
 
     fun sendLoginRequest(context: Context): AuthResult {
         val session = SessionManager(context)
+        if (session.isUpdateRequired()) {
+            return AuthResult(false, "Update required! Please update the app.")
+        }
+
         val user = session.getUsername()
         val pass = session.getPassword()
 
         if (user.isEmpty() || pass.isEmpty()) {
-            return AuthResult(false, "⚠️ Aborted: Username/Password empty! Click 'Credentials'.")
+            return AuthResult(false, "Aborted: Username or Password empty. Please set credentials.")
         }
 
         var conn: HttpURLConnection? = null
@@ -199,12 +299,12 @@ object AuthClient {
             }
 
             if (statusCode == 200) {
-                AuthResult(true, "✅ [200 OK] Response Received! (Len: ${responseText.length})")
+                AuthResult(true, "Response 200 OK Received (Length: ${responseText.length})")
             } else {
                 AuthResult(false, "Server returned HTTP $statusCode")
             }
         } catch (e: Exception) {
-            AuthResult(false, "POST Failed: ${e.message}")
+            AuthResult(false, "POST Request Failed: ${e.message}")
         } finally {
             conn?.disconnect()
         }

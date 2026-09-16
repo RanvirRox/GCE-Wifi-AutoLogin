@@ -71,6 +71,18 @@ class LoginWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
 
         if (intent.action == ACTION_WIDGET_CLICK) {
+            val session = SessionManager(context)
+            if (session.isUpdateRequired()) {
+                Toast.makeText(context, "Update Required! Opening app...", Toast.LENGTH_LONG).show()
+                try {
+                    val appIntent = Intent(context, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(appIntent)
+                } catch (_: Exception) {}
+                return
+            }
+
             // Cancel any pending reset
             resetRunnable?.let { mainHandler.removeCallbacks(it) }
 

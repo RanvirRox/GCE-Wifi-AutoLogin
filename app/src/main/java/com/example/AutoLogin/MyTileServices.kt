@@ -1,5 +1,6 @@
 package com.example.autologin
 
+import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +23,18 @@ class MyTileServices : TileService() {
 
     override fun onClick() {
         super.onClick()
+
+        val session = SessionManager(applicationContext)
+        if (session.isUpdateRequired()) {
+            Toast.makeText(this, "Update Required! Please open the app to update.", Toast.LENGTH_LONG).show()
+            try {
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                startActivityAndCollapse(intent)
+            } catch (_: Exception) {}
+            return
+        }
 
         // Toggle state to ON / Active immediately with loading icon
         isTaskRunning = true
